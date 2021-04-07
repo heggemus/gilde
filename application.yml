@@ -1,0 +1,85 @@
+version: '3.3'
+services:
+  wp-nfs:
+    image: wordpress:latest
+    volumes:
+     - /mnt/share:/var/www/html
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - traefik.docker.network=traefik-public
+        - traefik.constraint-label=traefik-public
+        - traefik.http.routers.wp-http.rule=Host(`myshop.$DOMAIN`)
+        - "traefik.http.routers.wp-http.entrypoints=http"
+        - traefik.http.routers.wp-http.middlewares=https-redirect
+        - "traefik.http.routers.wp-https.rule=Host(`myshop.$DOMAIN`)"
+        - traefik.http.routers.wp-https.entrypoints=https
+        - traefik.http.routers.wp-https.tls=true
+        - traefik.http.routers.wp-https.tls.certresolver=le
+        - "traefik.http.services.wp.loadbalancer.server.port=80"
+    environment:
+      WORDPRESS_DB_HOST: sqlnode2.northeurope.cloudapp.azure.com:3306
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_NAME: wpnfs
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    networks:
+      - traefik-public
+#...
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - traefik.docker.network=traefik-public
+        - traefik.constraint-label=traefik-public
+        - "traefik.http.routers.pma-http.rule=Host(`pma.$DOMAIN`)"
+        - "traefik.http.routers.pma-http.entrypoints=http"
+        - traefik.http.routers.pma-http.middlewares=https-redirect
+        - "traefik.http.routers.pma-https.rule=Host(`pma.$DOMAIN`)"
+        - traefik.http.routers.pma-https.entrypoints=https
+        - traefik.http.routers.pma-https.tls.certresolver=le
+        - "traefik.http.services.pma.loadbalancer.server.port=80"
+        - traefik.http.routers.pma-https.tls=true
+    environment:
+      MYSQL_USERNAME: root
+      MYSQL_ROOT_PASSWORDFILE: /run/secrets/db_root_password
+      PMA_HOST: sqlnode1.northeurope.cloudapp.azure.com
+    secrets:
+      - db_root_password
+    networks:
+      - default
+      - traefik-public
+##...
+
+secrets:
+    db_password:
+      file: db_password.txt
+    db_root_password:
+      file: db_root_password.txt
+  #...
+
+
+
+
+volumes:
+  portainer-data:
+  traefik-public-certificates:
+  data:
+  db_data:
+  wp-content:
+
+
+networks:
+  agent-network:
+    attachable: true
+  traefik-public:
+    external: true
